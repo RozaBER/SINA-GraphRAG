@@ -1,0 +1,11 @@
+source_node,target_node,score,rank,algorithm,evidence
+30,6832,0.00475,1,personalized_pagerank,2-hop path via node 5254.
+30,6946,0.004625,2,personalized_pagerank,2-hop path via node 5254.
+30,3089,0.00375,3,personalized_pagerank,2-hop path via node 3352.
+30,5807,0.00375,4,personalized_pagerank,2-hop path via node 5254.
+30,4717,0.003375,5,personalized_pagerank,2-hop path via node 3352.
+30,4361,0.00325,6,personalized_pagerank,2-hop path via node 5254.
+30,2398,0.003,7,personalized_pagerank,2-hop path via node 5254.
+30,4713,0.003,8,personalized_pagerank,2-hop path via node 5254.
+30,6765,0.002875,9,personalized_pagerank,2-hop path via node 5254.
+30,7632,0.002875,10,personalized_pagerank,2-hop path via node 5254.

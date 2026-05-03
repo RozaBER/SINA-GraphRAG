@@ -2,4 +2,5 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-outputs/
+paper/
+GraphRAG_Context_Retrieval_Topic2.md

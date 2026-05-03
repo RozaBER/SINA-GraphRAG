@@ -1,0 +1,29 @@
+{
+  "input_path": "Wiki-Vote.txt",
+  "output_dir": "outputs/experiments/horizontal",
+  "seeds": [
+    7,
+    13,
+    21,
+    42,
+    100
+  ],
+  "k_values": [
+    1,
+    3,
+    5,
+    10,
+    20
+  ],
+  "negative_strategies": [
+    "random",
+    "degree_matched",
+    "hard_2hop"
+  ],
+  "negatives_per_source": 100,
+  "test_ratio": 0.2,
+  "algorithms": [
+    "all"
+  ],
+  "max_sources": null
+}

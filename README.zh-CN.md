@@ -22,7 +22,8 @@
 | 训练/测试划分 | 按源节点分层随机划分，约 80/20 |
 | 算法 | Common Neighbors、Jaccard、Adamic/Adar、Personalized PageRank |
 | 主指标 | Macro Precision@10 |
-| 额外输出 | 排名 CSV、检索示例和可视化图表 |
+| 横向评估 | 多 seed、多 K、多负采样策略的算法对比 |
+| 额外输出 | 排名 CSV、检索示例、实验汇总和可视化图表 |
 
 ## 作业背景
 
@@ -77,6 +78,16 @@ GraphRAG 把图结构加入检索过程。它不仅判断两个对象的文本�
 
 前三种局部相似度算法在训练图的无向投影上计算，这样可以减少稀疏有向图中大量候选对得分为零的问题。`personalized_pagerank` 在有向训练图上使用近似随机游走实现，保证完整数据集上的评估可以在合理时间内完成。
 
+横向评估中还加入了 5 个对照算法：
+
+| 算法 | 在横向评估中的作用 |
+| --- | --- |
+| `resource_allocation` | 按共享邻居的度倒数分配权重。 |
+| `preferential_attachment` | 用源节点和目标节点的度乘积进行打分。 |
+| `cosine_similarity` | 用类似余弦相似度的方式归一化共享邻居数量。 |
+| `sorensen` | 使用 Sorensen-Dice 形式计算邻域重叠。 |
+| `target_indegree` | 只按目标节点入度排序的热门节点基线。 |
+
 ## 评估设计
 
 评估方式遵循标准链路预测流程：
@@ -103,6 +114,45 @@ GraphRAG 把图结构加入检索过程。它不仅判断两个对象的文本�
 
 在这次运行中，`personalized_pagerank` 的整体检索效果最好。
 
+## 横向评估
+
+横向评估代码位于 `experiments/horizontal_eval/`。它和基础 CLI 评估分开，是因为这里要测试算法排序在不同随机种子、不同推荐深度和不同负样本难度下是否稳定。
+
+流程如下：
+
+1. `run.py` 读取实验配置，包括 seeds、K 值、负采样策略、算法列表和输出目录。
+2. 对每个 seed，使用主流程相同的按源节点分层划分逻辑重新切分原始图。
+3. `sampling.py` 用三种负采样策略构造候选集：
+   - `random`：随机不存在边目标节点。
+   - `degree_matched`：入度接近真实隐藏目标节点的不存在边目标节点。
+   - `hard_2hop`：图中距离源节点较近的不存在边目标节点，作为更难区分的干扰项。
+4. `extra_scorers.py` 把 4 个主算法和额外基线算法组合起来。
+5. 每种算法在同一批候选集上排序，`aggregate.py` 输出单次运行指标和均值/标准差汇总。
+6. `plot.py` 将汇总 CSV 转换为横向对比图。
+
+默认横向评估输出保存在：
+
+- `outputs/experiments/horizontal/runs.csv`
+- `outputs/experiments/horizontal/summary_by_run.csv`
+- `outputs/experiments/horizontal/summary_mean_std.csv`
+- `outputs/experiments/horizontal/figures/*.png`
+
+使用当前保存的完整横向评估结果，在 `5` 个 seed、`K=10`、每个源节点 `100` 个负样本、`random` 负采样策略下，汇总结果如下：
+
+| 算法 | Mean Precision@10 | Std | Mean HitRate@10 | Mean MRR | Mean Runtime (s) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `personalized_pagerank` | 0.237843 | 0.001007 | 0.787071 | 0.541522 | 12.839028 |
+| `adamic_adar` | 0.228857 | 0.001787 | 0.712393 | 0.504670 | 0.372215 |
+| `common_neighbors` | 0.228214 | 0.001387 | 0.710193 | 0.498266 | 0.275621 |
+| `resource_allocation` | 0.223804 | 0.001420 | 0.711642 | 0.494236 | 0.376790 |
+| `jaccard` | 0.217886 | 0.001161 | 0.693455 | 0.415849 | 0.690525 |
+| `sorensen` | 0.217886 | 0.001161 | 0.693455 | 0.415849 | 0.292503 |
+| `cosine_similarity` | 0.210075 | 0.000995 | 0.698498 | 0.414023 | 0.306097 |
+| `target_indegree` | 0.207479 | 0.002073 | 0.793348 | 0.485981 | 0.144182 |
+| `preferential_attachment` | 0.182269 | 0.000830 | 0.731116 | 0.401870 | 0.166404 |
+
+主要结论是：`personalized_pagerank` 仍然取得最高的平均 Precision@10 和 MRR，但运行时间明显更长。`adamic_adar`、`common_neighbors` 和 `resource_allocation` 构成了一组更快的局部邻域方法，Precision@10 非常接近。
+
 ## 可视化展示
 
 下面的图片由当前实验输出生成。图片副本保存在 `docs/figures/` 中，因此可以直接在 README 里展示。
@@ -119,11 +169,25 @@ GraphRAG 把图结构加入检索过程。它不仅判断两个对象的文本�
 | --- | --- |
 | ![训练图度分布](docs/figures/train_degree_distribution.png) | ![检索网络示例](docs/figures/user_30_ppr_retrieval_network.png) |
 
+### 横向评估图表
+
+下面的图展示多 seed 横向评估结果。它们从 `outputs/experiments/horizontal/figures/` 复制到 `docs/figures/`，以便 README 稳定展示。
+
+| 算法均值与方差 | 各算法 Precision@K |
+| --- | --- |
+| ![横向评估算法均值与方差](docs/figures/horizontal_algorithm_mean_std.png) | ![横向评估 Precision@K](docs/figures/horizontal_precision_at_k_by_algorithm.png) |
+
+| 负采样策略对比 | 运行时间与检索质量权衡 |
+| --- | --- |
+| ![横向评估负采样策略对比](docs/figures/horizontal_negative_strategy_compare.png) | ![横向评估运行时间与质量权衡](docs/figures/horizontal_runtime_quality_tradeoff.png) |
+
 ## 项目架构
 
 ```text
 .
 ├── net_rag/                         # 支持 python -m net_rag.cli 的轻量桥接包
+├── experiments/
+│   └── horizontal_eval/              # 多 seed 横向评估流程
 ├── scripts/
 │   └── visualize_results.py         # 生成结果可视化
 ├── src/net_rag/
@@ -151,7 +215,8 @@ GraphRAG 把图结构加入检索过程。它不仅判断两个对象的文本�
 1. **Prepare**：解析 `Wiki-Vote.txt`，把边划分为训练集和测试集，并保存划分产物。
 2. **Evaluate**：为每个测试源节点构造候选目标节点，用不同图算法打分、排序，并计算评估指标。
 3. **Retrieve**：对指定用户推荐 Top-K 相关用户，推荐对象不会包含训练图中已经存在的可见出边。
-4. **Visualize**：生成多角度图表，用于分析算法效果、数据划分、分数分布、图度分布和一个具体检索网络示例。
+4. **Horizontal Evaluate**：在多个 seed、多个 K、不同负采样策略和额外基线算法上重复对比。
+5. **Visualize**：生成多角度图表，用于分析算法效果、数据划分、分数分布、图度分布、具体检索网络示例和横向实验权衡。
 
 这个结构对应作业目标：项目不是完整的 LLM 应用，而是一个可以运行、可以评估、可以解释结果的 GraphRAG 检索模块。
 
@@ -197,6 +262,18 @@ python -m venv .venv
 .\.venv\Scripts\python scripts\visualize_results.py --output-dir outputs --max-k 20 --user-id 30 --algo ppr
 ```
 
+运行完整横向评估：
+
+```powershell
+.\.venv\Scripts\python -m experiments.horizontal_eval.run --input Wiki-Vote.txt --output-dir outputs\experiments\horizontal --seeds 7,13,21,42,100 --k-values 1,3,5,10,20 --negative-strategies random,degree_matched,hard_2hop --negatives-per-source 100
+```
+
+运行快速横向评估烟雾测试：
+
+```powershell
+.\.venv\Scripts\python -m experiments.horizontal_eval.run --output-dir outputs\experiments\horizontal_smoke --seeds 42 --k-values 1,3 --negative-strategies random --algorithms common_neighbors,target_indegree --max-sources 20
+```
+
 运行测试：
 
 ```powershell
@@ -211,6 +288,8 @@ python -m venv .venv
 - `outputs/rankings/*.csv`：每种算法的候选边排序结果。
 - `outputs/retrievals/user_30_ppr.csv`：单用户 Top-K 上下文检索示例。
 - `outputs/figures/*.png`：可视化分析结果。
+- `outputs/experiments/horizontal/*.csv`：横向评估运行日志和聚合指标。
+- `outputs/experiments/horizontal/figures/*.png`：横向评估可视化结果。
 
 可视化文件包括：
 
@@ -225,6 +304,13 @@ python -m venv .venv
 - `test_positives_per_source_distribution.png`
 - `train_degree_distribution.png`
 - `user_30_ppr_retrieval_network.png`
+
+横向评估可视化文件包括：
+
+- `algorithm_mean_std.png`
+- `precision_at_k_by_algorithm.png`
+- `negative_strategy_compare.png`
+- `runtime_quality_tradeoff.png`
 
 所有可视化使用指定配色：
 
@@ -243,6 +329,8 @@ python -m venv .venv
 - 分数分布图可以观察算法是否能把真实隐藏边和随机负样本区分开。
 - 度分布图展示训练图的长尾结构，这是真实网络中常见的现象。
 - 检索网络图给出一个小例子，展示推荐结果可以如何通过图路径解释。
+- 横向评估图可以观察算法排序在不同 seed、K 值和更难负样本下是否稳定。
+- 运行时间与质量权衡图展示随机游走方法虽然更强，但比局部邻域基线更慢。
 
 ## 测试
 
@@ -253,5 +341,6 @@ python -m venv .venv
 - 负样本候选采样
 - 打分输出形状和数值有效性
 - 小规模端到端 CLI 流程
+- 横向评估 scorer、负采样策略、聚合逻辑和烟雾测试 CLI 输出
 
 这些测试用于说明项目可以从原始数据重新运行，并且主要流程是可复现的。

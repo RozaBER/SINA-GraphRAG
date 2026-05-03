@@ -1,41 +1,87 @@
 \documentclass[10pt,twocolumn]{article}
 
-\usepackage[a4paper,margin=0.72in]{geometry}
+\PassOptionsToPackage{hyphens}{url}
+\usepackage[a4paper,margin=0.74in,columnsep=0.24in]{geometry}
 \usepackage{amsmath}
 \usepackage{booktabs}
+\usepackage{caption}
 \usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{stfloats}
+\usepackage{subcaption}
 \usepackage[hidelinks]{hyperref}
 \usepackage[numbers,sort&compress]{natbib}
 
-\setcounter{topnumber}{3}
-\setcounter{dbltopnumber}{2}
-\renewcommand{\topfraction}{0.92}
-\renewcommand{\dbltopfraction}{0.92}
-\renewcommand{\textfraction}{0.06}
-\renewcommand{\floatpagefraction}{0.84}
+\graphicspath{{figures/}}
 
-\title{\textbf{Graph-Based Context Retrieval for Retrieval-Augmented Generation:\\
-A Link-Prediction Study on the Wiki-Vote Network}}
-\author{Net RAG Project}
-\date{}
+% 统一控制双栏论文的浮动体间距，避免图表把正文挤散。
+\setcounter{topnumber}{3}
+\setcounter{dbltopnumber}{3}
+\setcounter{totalnumber}{5}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\textfraction}{0.06}
+\renewcommand{\floatpagefraction}{0.82}
+\renewcommand{\dblfloatpagefraction}{0.82}
+\setlength{\floatsep}{7pt plus 2pt minus 2pt}
+\setlength{\textfloatsep}{9pt plus 2pt minus 2pt}
+\setlength{\dbltextfloatsep}{10pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{4pt}
+\setlength{\belowcaptionskip}{0pt}
+\captionsetup{font=small,labelfont=bf}
+\captionsetup[subfigure]{font=footnotesize,labelfont=bf,justification=centering,singlelinecheck=false}
+\Urlmuskip=0mu plus 1mu
+\raggedbottom
+\emergencystretch=1.5em
+
+% 复用的子图命令，保证每组图的尺寸和标题风格一致。
+\newcommand{\resultpanel}[2]{%
+\begin{subfigure}[t]{0.31\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.112\textheight,keepaspectratio]{#1}
+\caption{#2}
+\end{subfigure}%
+}
+\newcommand{\resultpanelwide}[2]{%
+\begin{subfigure}[t]{0.46\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.132\textheight,keepaspectratio]{#1}
+\caption{#2}
+\end{subfigure}%
+}
 
 \begin{document}
-\maketitle
 
-\begin{abstract}
-Retrieval-augmented generation (RAG) systems improve language-model reliability by grounding generation in external evidence, but conventional retrieval can miss structural context when relevance is expressed through indirect relationships rather than lexical similarity. This paper presents a compact GraphRAG-style retrieval module that formulates context retrieval as link prediction on the Wikipedia Vote Network. The system parses raw SNAP Wiki-Vote edges, performs a source-node-stratified random train/test split, samples negative candidate targets, and compares four graph scoring functions: Common Neighbors, Jaccard coefficient, Adamic-Adar, and approximate Personalized PageRank. On the full dataset split with 82,822 training edges and 20,867 hidden test edges, Personalized PageRank obtains the best overall result, with Precision@10 of 0.239297, HitRate@10 of 0.791845, and MRR of 0.551049. The study shows that graph-based retrieval can provide a reproducible, inspectable retrieval layer for GraphRAG pipelines, even before adding a downstream language generator.
-\end{abstract}
+\twocolumn[{%
+\begin{center}
+{\LARGE\bfseries Graph-Based Context Retrieval for Retrieval-Augmented Generation:\par}
+\vspace{2pt}
+{\Large\bfseries Personalized PageRank as the Main Retrieval Model on the Wiki-Vote Network\par}
+\vspace{6pt}
+{\large Net RAG Project\par}
+\vspace{10pt}
+\begin{minipage}{0.92\textwidth}
+\small
+\noindent\textbf{Abstract.}
+Retrieval-augmented generation (RAG) systems improve language-model reliability by grounding generation in external evidence, but conventional retrieval can miss structural context when relevance is expressed through indirect relationships rather than lexical similarity. This paper presents a compact GraphRAG-style retrieval module that formulates context retrieval as link prediction on the Wikipedia Vote Network. The main retrieval model is approximate Personalized PageRank, evaluated against local graph heuristics and additional horizontal baselines. The system parses raw SNAP Wiki-Vote edges, performs source-node-stratified train/test splits, constructs controlled positive-negative candidate sets, and measures ranking quality with Precision@K, HitRate@K, and MRR. On the original full-dataset setting with 82,822 training edges and 20,867 hidden test edges, Personalized PageRank obtains Precision@10 of 0.239297, HitRate@10 of 0.791845, and MRR of 0.551049. A broader horizontal evaluation over five seeds, three negative-sampling strategies, five K cutoffs, and nine graph scorers further shows that Personalized PageRank is the strongest model under random and hard two-hop negative sampling, while degree-matched negatives expose the competitiveness of normalized local-overlap methods. The study demonstrates that graph-based retrieval can provide a reproducible, inspectable retrieval layer for GraphRAG pipelines before adding a downstream language generator.
+
+\vspace{4pt}
+\noindent\textbf{Keywords:} GraphRAG; retrieval-augmented generation; link prediction; Personalized PageRank; Wiki-Vote.
+\end{minipage}
+\end{center}
+\vspace{12pt}
+}]
 
 \section{Introduction}
 Large language models can generate fluent answers while still failing when the required knowledge is absent, private, or stale. Retrieval-augmented generation addresses this limitation by retrieving external evidence before generation, allowing model outputs to be grounded in non-parametric memory \citep{lewis2020rag}. However, a retrieval component based only on direct lexical or vector similarity can miss relevant context that is expressed through relationships. Recent GraphRAG work argues that graph indexes can improve retrieval and summarization when questions require global or relational context \citep{edge2024graphrag}.
 
 This project studies the retrieval part of that idea in isolation. Instead of constructing a full question-answering application, it builds a graph retrieval module over the Wikipedia Vote Network. A directed edge from user $u$ to user $v$ denotes that $u$ voted for $v$ in a Wikipedia administrator election. If an unobserved edge from $u$ to $v$ can be predicted from the training graph, then $v$ is treated as structurally relevant context for $u$.
 
-The contribution is practical and reproducible. The repository implements raw data parsing, deterministic edge splitting, candidate generation, four retrieval algorithms, ranking evaluation, single-user context retrieval, and visualization. This paper summarizes the implemented method and reports the saved full-dataset results using the project artifacts.
+The contribution is practical and reproducible. The repository implements raw data parsing, deterministic edge splitting, candidate generation, graph retrieval algorithms, ranking evaluation, single-user context retrieval, horizontal model comparison, and visualization. The central model studied in the paper is approximate Personalized PageRank, with other graph scorers serving as baselines or robustness checks. This paper summarizes the implemented method and reports the saved full-dataset results using the project artifacts.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.93\textwidth,height=0.42\textheight,keepaspectratio]{figures/pipeline_workflow_300dpi.png}
+\includegraphics[width=0.88\textwidth,height=0.32\textheight,keepaspectratio]{pipeline_workflow_300dpi.png}
 \caption{Implemented Net RAG workflow. The repository separates the system into a data layer, a graph scoring layer, and an analysis layer, allowing retrieval quality to be measured before integration with a downstream language generator.}
 \label{fig:pipeline}
 \end{figure*}
@@ -50,6 +96,21 @@ The task is also connected to classical link prediction. Liben-Nowell and Kleinb
 A parallel line of graph representation learning learns continuous node embeddings from random walks or biased neighborhood sampling. DeepWalk generalizes language-model-style sequence learning to graph walks \citep{perozzi2014deepwalk}, while node2vec introduces biased random walks to balance local and structural neighborhoods \citep{grover2016node2vec}. Such embedding approaches can be powerful for downstream prediction, but they introduce additional training objectives and hyperparameters. This project instead emphasizes transparent graph scorers, which makes the retrieval behavior easier to audit in a small course-scale GraphRAG pipeline.
 
 The experimental dataset comes from SNAP's Wikipedia Vote Network, whose source material is associated with work on signed social networks and link prediction in online communities \citep{leskovec2010signed,leskovec2010predicting,snapnets}. The implementation uses NetworkX for graph construction and traversal \citep{hagberg2008networkx}.
+
+\begin{figure*}[t]
+\centering
+\resultpanel{metrics_summary.png}{Metric summary across graph retrieval algorithms.}\hfill
+\resultpanel{precision_at_k_curve.png}{Precision@K curve for cutoff sensitivity.}\hfill
+\resultpanel{precision_at_k_heatmap.png}{Precision@K heatmap by scorer and cutoff.}
+
+\vspace{6pt}
+
+\resultpanel{score_distribution_positive_negative.png}{Positive-negative score distribution.}\hfill
+\resultpanel{train_degree_distribution.png}{Training graph degree distribution.}\hfill
+\resultpanel{user_30_ppr_retrieval_network.png}{Personalized PageRank retrieval network for user 30.}
+\caption{Consolidated diagnostic visualizations for the original retrieval evaluation. Panels (a)--(c) summarize algorithm-level ranking quality, panel (d) shows score separation between positive and negative candidates, and panels (e)--(f) connect retrieval behavior to graph structure and an example context set.}
+\label{fig:diagnostic-panels}
+\end{figure*}
 
 \section{Methodology}
 \subsection{Problem Formulation}
@@ -67,7 +128,7 @@ The raw file \texttt{Wiki-Vote.txt} is parsed directly. Comment lines are skippe
 SNAP reports 7,115 nodes and 103,689 edges for the Wiki-Vote network \citep{snapnets}. The repository's default split with seed 42 produces 82,822 training edges and 20,867 testing edges from 103,689 unique edges.
 
 \subsection{Graph Scoring Functions}
-The project evaluates four scoring functions. Common Neighbors counts neighbor overlap in an undirected projection:
+The project uses approximate Personalized PageRank as the main GraphRAG retrieval model and evaluates local graph scorers as interpretable baselines. Common Neighbors counts neighbor overlap in an undirected projection:
 \[
 f_{\mathrm{CN}}(s,t)=|\Gamma(s)\cap\Gamma(t)|.
 \]
@@ -83,34 +144,49 @@ f_{\mathrm{AA}}(s,t)=
 \]
 These three scorers use the undirected training projection to reduce sparsity.
 
-Personalized PageRank is implemented as an approximate random-walk scorer on the directed training graph. For each source node, the implementation simulates source-centered walks with restart probability 0.15, 400 walks, and walk length 20. Candidate targets are scored by normalized visit frequency. This produces a practical approximation to source-conditioned graph relevance.
+Personalized PageRank is implemented as an approximate random-walk scorer on the directed training graph. For each source node, the implementation simulates source-centered walks with restart probability 0.15, 400 walks, and walk length 20. Candidate targets are scored by normalized visit frequency. This produces a practical approximation to source-conditioned graph relevance and serves as the paper's main retrieval model.
+
+\begin{figure*}[t]
+\centering
+\resultpanelwide{horizontal_algorithm_mean_std.png}{Mean Precision@10 with seed-level variance across horizontal algorithms.}\hfill
+\resultpanelwide{horizontal_precision_at_k_by_algorithm.png}{Precision@K curves for the horizontal algorithm set.}
+\caption{Horizontal evaluation quality plots. Panel (a) compares average algorithm performance under the default random-negative protocol, and panel (b) shows how ranking quality changes across retrieval cutoffs.}
+\label{fig:horizontal-quality}
+\end{figure*}
+
+\begin{figure*}[t]
+\centering
+\resultpanelwide{horizontal_negative_strategy_compare.png}{Algorithm sensitivity to random, degree-matched, and hard two-hop negatives.}\hfill
+\resultpanelwide{horizontal_runtime_quality_tradeoff.png}{Runtime-quality trade-off at the primary evaluation cutoff.}
+\caption{Horizontal evaluation robustness and efficiency plots. Panel (a) shows that the candidate-sampling protocol changes the ranking of graph scorers, while panel (b) exposes the additional runtime cost of Personalized PageRank relative to local heuristics.}
+\label{fig:horizontal-robustness}
+\end{figure*}
 
 \subsection{Candidate Sampling and Evaluation}
-For every source node with hidden positives, the candidate set includes its true hidden targets and up to 100 randomly sampled negative targets that are not edges in the full graph. The random sampler is deterministic under the configured seed.
+For every source node with hidden positives, the default candidate set includes its true hidden targets and up to 100 randomly sampled negative targets that are not edges in the full graph. The random sampler is deterministic under the configured seed. The horizontal evaluation extends this protocol with degree-matched negatives and hard two-hop negatives to test whether a scorer remains strong when popularity and local structural similarity are controlled.
 
 The ranking is evaluated with Macro Precision@K, HitRate@K, and mean reciprocal rank (MRR). Precision@K measures the average fraction of top-$K$ candidates that are true hidden edges. HitRate@K records whether at least one hidden edge appears in the top-$K$ list. MRR rewards algorithms that place the first positive target early in the ranking.
 
-\section{Experiments}
-The experiments use the repository defaults: seed 42, test ratio 0.2, $K=10$, and 100 negative samples per source. The full pipeline is executed from the repository root in four stages:
+\section{Experiments: Personalized PageRank as the Main Model}
+The experiments are organized around approximate Personalized PageRank as the main GraphRAG retrieval model. The initial full-dataset experiment uses the repository defaults: seed 42, test ratio 0.2, $K=10$, and 100 random negative samples per evaluated source. The full pipeline is executed from the repository root in four stages:
 \begin{enumerate}
     \item prepare the train/test edge split from \texttt{Wiki-Vote.txt};
-    \item evaluate all graph scorers over sampled candidate sets;
+    \item evaluate graph scorers over sampled candidate sets;
     \item retrieve the top related nodes for a selected source user;
     \item generate summary plots from saved metrics and ranking files.
 \end{enumerate}
 
-The experiments were conducted on a Python 3.12 workstation equipped with an NVIDIA GeForce RTX 4080 GPU. The software stack uses NetworkX as the graph computation framework for graph construction, neighborhood traversal, and random-walk-based retrieval. NumPy and pandas are used for deterministic candidate processing and metric aggregation, while matplotlib is used to generate the visual analysis figures. The experimental artifacts are written as CSV, JSON, and PNG files so that each stage can be inspected and reproduced independently.
+The experiments were conducted on a Python 3.12 workstation equipped with an NVIDIA GeForce RTX 4080 GPU. The software stack uses NetworkX for graph construction, neighborhood traversal, and random-walk-based retrieval. NumPy and pandas support deterministic candidate processing and metric aggregation, while matplotlib generates the visual analysis figures. The experimental artifacts are written as CSV, JSON, and PNG files so that each stage can be inspected and reproduced independently.
 
-The split protocol is source-node stratified so that evaluated sources retain visible outgoing graph context in the training graph. This design is important for retrieval: if all outgoing edges of a low-degree source were hidden, neighborhood-based methods would have no local evidence from which to rank targets. Candidate construction combines all hidden positives for each evaluated source with a fixed-size random negative set. The negative edges are sampled from node pairs that do not appear in the full graph, which gives each scorer a controlled ranking problem while avoiding the infeasible cost of scoring all possible non-edges.
+The split protocol is source-node stratified so that evaluated sources retain visible outgoing graph context in the training graph. This design is important for retrieval: if all outgoing edges of a low-degree source were hidden, neighborhood-based methods would have no local evidence from which to rank targets. Candidate construction combines all hidden positives for each evaluated source with a fixed-size negative set sampled from non-edges. This creates a controlled ranking problem while avoiding the infeasible cost of scoring all possible non-edges.
+
+To strengthen the evaluation beyond a single baseline run, the horizontal evaluation compares nine graph scorers over five random seeds, five retrieval cutoffs ($K=1,3,5,10,20$), and three negative-sampling strategies. The scorer set includes the four original models--Common Neighbors, Jaccard, Adamic-Adar, and Personalized PageRank--plus Resource Allocation, Preferential Attachment, Cosine Similarity, Sorensen, and Target In-Degree. The three candidate protocols test complementary forms of difficulty: random negatives measure standard link-prediction ranking, degree-matched negatives control target popularity, and hard two-hop negatives emphasize structurally plausible false targets. The horizontal evaluation therefore measures not only whether Personalized PageRank is strong in the original setting, but also whether the main model remains competitive under harder candidate construction.
 
 The implementation is intentionally modular: it evaluates the retrieval component of a GraphRAG pipeline before connecting it to a full LLM answering system. This separation makes retrieval behavior measurable without confounding it with generator quality, prompt design, or answer evaluation. In the current configuration, the most expensive component is approximate Personalized PageRank random-walk scoring over the directed training graph.
 
-\section{Results}
-Table~\ref{tab:main-results} reports the saved full-dataset retrieval results. Personalized PageRank is the strongest scorer on all three metrics. Compared with Adamic-Adar, the best local-overlap baseline, Personalized PageRank improves Precision@10 by 0.008825, HitRate@10 by 0.077789, and MRR by 0.048910. The largest gain appears in HitRate@10, indicating that source-conditioned random walks are particularly effective at bringing at least one hidden positive edge into the top retrieved context set.
-
 \begin{table}[t]
 \centering
-\caption{Full-dataset retrieval performance with $K=10$ and 100 negative candidates per source.}
+\caption{Original full-dataset retrieval performance with $K=10$ and 100 random negative candidates per source. Personalized PageRank is the main retrieval model.}
 \label{tab:main-results}
 \scriptsize
 \begin{tabular}{@{}lccc@{}}
@@ -125,62 +201,43 @@ Personalized PR & \textbf{0.239297} & \textbf{0.791845} & \textbf{0.551049} \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
+\begin{table}[t]
 \centering
-\includegraphics[width=\linewidth]{figures/metrics_summary.png}
-\caption{Metric summary across graph retrieval algorithms.}
-\label{fig:metrics-summary}
-\end{figure}
+\caption{Horizontal evaluation summary at $K=10$ over five seeds. Values are mean Precision@10 and MRR.}
+\label{tab:horizontal-summary}
+\scriptsize
+\begin{tabular}{@{}llcc@{}}
+\toprule
+Protocol & Best model & P@10 & MRR \\
+\midrule
+Random & Personalized PR & \textbf{0.237843} & \textbf{0.541522} \\
+Degree matched & Jaccard/Sorensen & \textbf{0.141003} & \textbf{0.336657} \\
+Hard 2-hop & Personalized PR & \textbf{0.222983} & \textbf{0.485723} \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{figures/precision_at_k_curve.png}
-\caption{Precision@K curve showing how retrieval quality changes as $K$ increases.}
-\label{fig:precision-curve}
-\end{figure}
+\section{Results: Main-Model Performance and Horizontal Evaluation}
+Table~\ref{tab:main-results} reports the saved full-dataset retrieval results for the original four-model experiment. Personalized PageRank, the paper's main retrieval model, is the strongest scorer on all three metrics. Compared with Adamic-Adar, the best local-overlap baseline in the original run, Personalized PageRank improves Precision@10 by 0.008825, HitRate@10 by 0.077789, and MRR by 0.048910. The largest gain appears in HitRate@10, indicating that source-conditioned random walks are particularly effective at bringing at least one hidden positive edge into the top retrieved context set.
 
-Figure~\ref{fig:metrics-summary} confirms that Personalized PageRank dominates the aggregate metrics, while Figure~\ref{fig:precision-curve} shows that the ranking behavior remains competitive beyond the single $K=10$ operating point. This matters for GraphRAG because a downstream generator may consume different context budgets depending on prompt length, model context window, and latency constraints. A scorer that remains stable across cutoffs is easier to deploy than one that only performs well at a narrowly tuned $K$.
+The consolidated diagnostic figure provides the mechanism behind this result. Figure~\ref{fig:diagnostic-panels}a confirms the aggregate advantage of Personalized PageRank in the original setting, while Figure~\ref{fig:diagnostic-panels}b--c show that the model remains competitive across retrieval cutoffs rather than only at $K=10$. This matters for GraphRAG because a downstream generator may consume different context budgets depending on prompt length, model context window, and latency constraints. A scorer that remains stable across cutoffs is easier to deploy than one that only performs well at a narrowly tuned $K$.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{figures/precision_at_k_heatmap.png}
-\caption{Precision@K heatmap for comparing algorithms and cutoff values.}
-\label{fig:heatmap}
-\end{figure}
+Figure~\ref{fig:diagnostic-panels}d shows the score-level separation between positive hidden edges and sampled negatives. Successful retrieval requires not only high scores for positives, but also sufficient separation from plausible distractors. Personalized PageRank benefits from multi-hop directed evidence, whereas local overlap methods can assign similar low scores when two candidate nodes share few immediate neighbors. Figure~\ref{fig:diagnostic-panels}e further shows that the training graph has a heavy-tailed degree distribution, which is typical of social and voting networks. Figure~\ref{fig:diagnostic-panels}f illustrates the practical output of the main model: the retrieval module produces a ranked context set with structural evidence such as shared neighbors or short graph paths.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{figures/score_distribution_positive_negative.png}
-\caption{Score distribution for positive hidden edges and sampled negative candidates.}
-\label{fig:score-dist}
-\end{figure}
+The horizontal evaluation broadens the conclusion from a single saved run to a multi-seed comparison. Table~\ref{tab:horizontal-summary} and Figure~\ref{fig:horizontal-quality}a show that Personalized PageRank remains the best algorithm under the random-negative setting, with mean Precision@10 of 0.237843 and mean MRR of 0.541522 over five seeds. The same model also leads under hard two-hop negatives, where it reaches mean Precision@10 of 0.222983 and mean MRR of 0.485723. This is the strongest evidence for using Personalized PageRank as the main GraphRAG retriever: it performs well not only against easy random non-edges, but also against structurally nearby false candidates.
 
-Figures~\ref{fig:heatmap} and~\ref{fig:score-dist} provide a more diagnostic view of ranking quality. The heatmap makes the cutoff sensitivity visible and shows that methods based on richer structural evidence are less fragile as the allowed retrieval set changes. The score distribution further explains the numerical results: successful retrieval requires not only high scores for positives, but also sufficient separation from sampled negatives. Personalized PageRank benefits from multi-hop directed evidence, whereas local overlap methods can assign similar low scores when two candidate nodes share few immediate neighbors.
+The degree-matched protocol reveals a different behavior. When negative targets are sampled to resemble positives in target in-degree, normalized local-overlap methods become stronger: Jaccard and Sorensen tie for the best mean Precision@10 at 0.141003 and mean MRR at 0.336657. This result is informative rather than contradictory. Personalized PageRank exploits directed multi-hop relevance and target reachability; degree matching removes part of the popularity signal and rewards algorithms that normalize local neighborhood overlap. The horizontal evaluation therefore shows a clear trade-off: Personalized PageRank is the best main model for the repository's default and hard-structural retrieval settings, while normalized local heuristics provide useful robustness baselines when target popularity is controlled.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{figures/train_degree_distribution.png}
-\caption{Training graph degree distribution, showing the heavy-tailed structure typical of real social networks.}
-\label{fig:degree}
-\end{figure}
+Figure~\ref{fig:horizontal-quality}b extends the comparison across $K$. The ranking curves indicate that no single local baseline dominates across all retrieval budgets, while Personalized PageRank maintains strong top-rank behavior under the primary candidate protocols. Figure~\ref{fig:horizontal-robustness}a further shows that negative sampling is not a minor implementation detail; it changes the measured difficulty of the retrieval task and therefore must be reported alongside algorithm metrics. Figure~\ref{fig:horizontal-robustness}b places quality against runtime. Target In-Degree and Preferential Attachment are fast but weaker, local overlap methods provide a favorable cost-quality balance, and Personalized PageRank delivers the strongest retrieval quality at a higher computational cost.
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=\linewidth]{figures/user_30_ppr_retrieval_network.png}
-\caption{Example Personalized PageRank retrieval network for user 30.}
-\label{fig:retrieval-network}
-\end{figure}
-
-Figures~\ref{fig:degree} and~\ref{fig:retrieval-network} connect the quantitative metrics back to graph structure. The degree distribution shows a highly skewed training graph, which is expected in social and voting networks. This skew explains why Jaccard underperforms: normalizing by the union of neighborhoods can penalize candidates connected through high-degree regions, even when those regions are informative. Common Neighbors and Adamic-Adar perform better because they preserve direct overlap signals, but they remain local. The retrieval network example shows the practical value of the repository's \texttt{retrieval.py} module: the output is not just a score table, but a ranked context set with structural evidence such as shared neighbors or short graph paths.
-
-Overall, the experimental results support three observations. First, graph-only retrieval is feasible on the full Wiki-Vote network without neural training. Second, local graph heuristics provide strong and interpretable baselines, but their effectiveness is constrained by sparse immediate neighborhoods. Third, approximate Personalized PageRank is the best fit for this repository because it preserves directionality, uses multi-hop evidence, and produces the strongest ranking metrics under the same candidate sampling protocol.
-
-\clearpage
+Overall, the results support three observations. First, graph-only retrieval is feasible on the full Wiki-Vote network without neural training. Second, local graph heuristics provide strong and interpretable baselines, but their effectiveness depends heavily on the candidate protocol. Third, approximate Personalized PageRank is the best main model for this repository because it preserves directionality, uses multi-hop evidence, and produces the strongest ranking metrics under both the original random-negative evaluation and the harder two-hop evaluation.
 
 \section{Conclusion}
-This project demonstrates a reproducible GraphRAG retrieval module by turning context retrieval into link prediction on the Wiki-Vote graph. The results show that approximate Personalized PageRank provides the best retrieval quality among the implemented scorers, outperforming local overlap methods on Precision@10, HitRate@10, and MRR. More broadly, the study supports the value of graph-aware retrieval when relevant context is relational rather than purely textual.
+This project demonstrates a reproducible GraphRAG retrieval module by turning context retrieval into link prediction on the Wiki-Vote graph. The main retrieval model is approximate Personalized PageRank, and the experiments show that it provides the strongest overall retrieval quality among the implemented scorers. In the original full-dataset setting, Personalized PageRank outperforms Common Neighbors, Jaccard, and Adamic-Adar on Precision@10, HitRate@10, and MRR. In the horizontal evaluation, it remains the best model under random negative sampling and hard two-hop negative sampling across five seeds.
 
-The main limitation is that the system stops at retrieval: it does not yet feed retrieved graph context into an LLM, evaluate generated answers, or compare against dense text retrieval. Future work should add textual node attributes, test graph-plus-vector hybrid retrieval, and measure the downstream effect of retrieved graph context on answer factuality and citation quality.
+The broader result is that graph-aware retrieval is valuable when relevant context is relational rather than purely textual. Personalized PageRank is especially well aligned with this setting because it uses directed multi-hop evidence while remaining inspectable and reproducible. The horizontal evaluation also clarifies the role of candidate construction: degree-matched negatives reduce the advantage of random-walk relevance and highlight normalized local-overlap methods, whereas hard two-hop negatives preserve the advantage of the main Personalized PageRank model. This gives the system a clearer empirical profile than a single baseline experiment.
+
+Future work should connect the retrieved graph context to an LLM generation stage, add textual node attributes, test graph-plus-vector hybrid retrieval, and measure the downstream effect of graph retrieval on answer factuality and citation quality.
 
 \bibliographystyle{plainnat}
 \bibliography{references}

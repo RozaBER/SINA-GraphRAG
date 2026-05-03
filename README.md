@@ -22,7 +22,8 @@ The main idea is simple: in a graph, relevant context may not appear through dir
 | Train/test split | Source-node stratified random split, about 80/20 |
 | Algorithms | Common Neighbors, Jaccard, Adamic/Adar, Personalized PageRank |
 | Main metric | Macro Precision@10 |
-| Extra outputs | Ranking CSV files, retrieval examples, and visualization figures |
+| Horizontal evaluation | Multi-seed, multi-K, multi-negative-sampling comparison |
+| Extra outputs | Ranking CSV files, retrieval examples, experiment summaries, and visualization figures |
 
 ## Assignment Background
 
@@ -77,6 +78,16 @@ The project compares four graph-based scoring algorithms:
 
 The first three algorithms run on an undirected projection of the training graph. This makes the local similarity scores less sparse. `personalized_pagerank` runs on the directed training graph with an approximate random-walk implementation, which keeps the full dataset evaluation practical.
 
+The horizontal evaluation also adds five comparison baselines:
+
+| Algorithm | Role in the horizontal evaluation |
+| --- | --- |
+| `resource_allocation` | Gives shared neighbors a weight based on their inverse degree. |
+| `preferential_attachment` | Scores candidates by the product of source and target degrees. |
+| `cosine_similarity` | Normalizes shared neighbors with cosine-style degree scaling. |
+| `sorensen` | Uses the Sorensen-Dice form of neighborhood overlap. |
+| `target_indegree` | Popularity baseline that only ranks by target in-degree. |
+
 ## Evaluation Design
 
 The evaluation follows a standard link prediction setup:
@@ -102,6 +113,45 @@ Current full-dataset result using `seed=42`, `K=10`, and `100` negative samples 
 
 In this run, `personalized_pagerank` gives the best overall retrieval performance.
 
+## Horizontal Evaluation
+
+The horizontal evaluation code is stored under `experiments/horizontal_eval/`. It is separate from the basic CLI evaluation because it tests whether the algorithm ranking remains stable across random seeds, recommendation depths, and negative-sampling difficulty.
+
+The workflow is:
+
+1. `run.py` reads the experiment configuration, including seeds, K values, negative strategies, algorithms, and output directory.
+2. For each seed, the raw graph is split again with the same source-node stratified logic used by the main pipeline.
+3. `sampling.py` builds candidate sets with three negative-sampling strategies:
+   - `random`: random non-edge targets.
+   - `degree_matched`: non-edge targets with in-degree close to the true hidden targets.
+   - `hard_2hop`: non-edge targets that are close to the source in the graph, making them harder distractors.
+4. `extra_scorers.py` combines the four main algorithms with the additional baselines.
+5. Each algorithm ranks the same candidate sets, and `aggregate.py` writes per-run metrics plus mean/std summaries.
+6. `plot.py` turns the aggregated CSV files into comparison figures.
+
+Default horizontal evaluation outputs are saved to:
+
+- `outputs/experiments/horizontal/runs.csv`
+- `outputs/experiments/horizontal/summary_by_run.csv`
+- `outputs/experiments/horizontal/summary_mean_std.csv`
+- `outputs/experiments/horizontal/figures/*.png`
+
+Using the saved full horizontal run with `5` seeds, `K=10`, `100` negative samples per source, and the `random` negative strategy, the aggregated result is:
+
+| Algorithm | Mean Precision@10 | Std | Mean HitRate@10 | Mean MRR | Mean Runtime (s) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `personalized_pagerank` | 0.237843 | 0.001007 | 0.787071 | 0.541522 | 12.839028 |
+| `adamic_adar` | 0.228857 | 0.001787 | 0.712393 | 0.504670 | 0.372215 |
+| `common_neighbors` | 0.228214 | 0.001387 | 0.710193 | 0.498266 | 0.275621 |
+| `resource_allocation` | 0.223804 | 0.001420 | 0.711642 | 0.494236 | 0.376790 |
+| `jaccard` | 0.217886 | 0.001161 | 0.693455 | 0.415849 | 0.690525 |
+| `sorensen` | 0.217886 | 0.001161 | 0.693455 | 0.415849 | 0.292503 |
+| `cosine_similarity` | 0.210075 | 0.000995 | 0.698498 | 0.414023 | 0.306097 |
+| `target_indegree` | 0.207479 | 0.002073 | 0.793348 | 0.485981 | 0.144182 |
+| `preferential_attachment` | 0.182269 | 0.000830 | 0.731116 | 0.401870 | 0.166404 |
+
+The main finding is that `personalized_pagerank` still has the best mean Precision@10 and MRR, but it is much slower than local-neighborhood methods. `adamic_adar`, `common_neighbors`, and `resource_allocation` form a practical faster group with very close Precision@10.
+
 ## Visualization Gallery
 
 The figures below are generated from the current experiment outputs. Copies are stored in `docs/figures/` so they can render directly in this README.
@@ -118,11 +168,25 @@ The figures below are generated from the current experiment outputs. Copies are 
 | --- | --- |
 | ![Training Degree Distribution](docs/figures/train_degree_distribution.png) | ![Retrieval Network Example](docs/figures/user_30_ppr_retrieval_network.png) |
 
+### Horizontal Evaluation Figures
+
+These figures summarize the multi-seed horizontal evaluation. They are copied from `outputs/experiments/horizontal/figures/` into `docs/figures/` for stable README rendering.
+
+| Algorithm Mean and Variance | Precision@K by Algorithm |
+| --- | --- |
+| ![Horizontal Algorithm Mean and Variance](docs/figures/horizontal_algorithm_mean_std.png) | ![Horizontal Precision@K by Algorithm](docs/figures/horizontal_precision_at_k_by_algorithm.png) |
+
+| Negative Sampling Comparison | Runtime and Quality Tradeoff |
+| --- | --- |
+| ![Horizontal Negative Sampling Comparison](docs/figures/horizontal_negative_strategy_compare.png) | ![Horizontal Runtime and Quality Tradeoff](docs/figures/horizontal_runtime_quality_tradeoff.png) |
+
 ## Project Architecture
 
 ```text
 .
 ├── net_rag/                         # Lightweight bridge for python -m net_rag.cli
+├── experiments/
+│   └── horizontal_eval/              # Multi-seed horizontal evaluation workflow
 ├── scripts/
 │   └── visualize_results.py         # Generates result visualizations
 ├── src/net_rag/
@@ -150,7 +214,8 @@ The pipeline has four main stages:
 1. **Prepare**: parse `Wiki-Vote.txt`, split edges into training and testing sets, and save the split artifacts.
 2. **Evaluate**: construct candidate targets for each test source node, score them with each graph algorithm, rank the results, and calculate metrics.
 3. **Retrieve**: for a selected user, recommend Top-K related users that do not already have visible training edges from that source.
-4. **Visualize**: generate plots that explain performance, data split behavior, score distributions, graph degree patterns, and one retrieval example network.
+4. **Horizontal Evaluate**: rerun the comparison across several seeds, K values, negative-sampling strategies, and additional baselines.
+5. **Visualize**: generate plots that explain performance, data split behavior, score distributions, graph degree patterns, one retrieval example network, and horizontal experiment tradeoffs.
 
 This structure matches the assignment goal: the project is not a full LLM application, but a working GraphRAG retrieval module that can identify relevant context from graph structure.
 
@@ -196,6 +261,18 @@ Generate visualizations:
 .\.venv\Scripts\python scripts\visualize_results.py --output-dir outputs --max-k 20 --user-id 30 --algo ppr
 ```
 
+Run the full horizontal evaluation:
+
+```powershell
+.\.venv\Scripts\python -m experiments.horizontal_eval.run --input Wiki-Vote.txt --output-dir outputs\experiments\horizontal --seeds 7,13,21,42,100 --k-values 1,3,5,10,20 --negative-strategies random,degree_matched,hard_2hop --negatives-per-source 100
+```
+
+Run a quick horizontal smoke test:
+
+```powershell
+.\.venv\Scripts\python -m experiments.horizontal_eval.run --output-dir outputs\experiments\horizontal_smoke --seeds 42 --k-values 1,3 --negative-strategies random --algorithms common_neighbors,target_indegree --max-sources 20
+```
+
 Run tests:
 
 ```powershell
@@ -210,6 +287,8 @@ Main generated files:
 - `outputs/rankings/*.csv`: ranked candidate edges for each algorithm.
 - `outputs/retrievals/user_30_ppr.csv`: example Top-K context retrieval output.
 - `outputs/figures/*.png`: visual analysis results.
+- `outputs/experiments/horizontal/*.csv`: horizontal evaluation run logs and aggregate metrics.
+- `outputs/experiments/horizontal/figures/*.png`: horizontal evaluation visualizations.
 
 Visualization files include:
 
@@ -224,6 +303,13 @@ Visualization files include:
 - `test_positives_per_source_distribution.png`
 - `train_degree_distribution.png`
 - `user_30_ppr_retrieval_network.png`
+
+Horizontal evaluation visualization files include:
+
+- `algorithm_mean_std.png`
+- `precision_at_k_by_algorithm.png`
+- `negative_strategy_compare.png`
+- `runtime_quality_tradeoff.png`
 
 All visualizations use the required color palette:
 
@@ -242,6 +328,8 @@ All visualizations use the required color palette:
 - The score distribution plot shows whether an algorithm separates true hidden edges from random negative candidates.
 - The degree distribution plot shows that the training graph is highly skewed, which is typical for real networks.
 - The retrieval network plot gives a small example of how graph paths can explain a recommendation.
+- The horizontal evaluation figures show whether algorithm rankings are stable across seeds, K values, and harder negative candidates.
+- The runtime-quality plot highlights the tradeoff between the stronger but slower random-walk method and the faster local-neighborhood baselines.
 
 ## Testing
 
@@ -252,5 +340,6 @@ The test suite checks:
 - negative candidate sampling
 - scoring output shape and numeric validity
 - small end-to-end CLI workflow
+- horizontal evaluation scorers, negative strategies, aggregation, and smoke CLI output
 
 These tests are meant to show that the project can be rerun from raw data and that the main workflow is reproducible.

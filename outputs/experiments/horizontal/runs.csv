@@ -1,0 +1,16 @@
+run_id,seed,test_ratio,negative_strategy,negatives_per_source,sources_evaluated,positive_candidates,negative_candidates,candidate_build_seconds,total_runtime_seconds
+seed7_random,7,0.2,random,100,3728,20867,372800,2.001148,19.104554
+seed7_degree_matched,7,0.2,degree_matched,100,3728,20867,372800,7.709772,26.691313
+seed7_hard_2hop,7,0.2,hard_2hop,100,3728,20867,372800,16.625286,34.109817
+seed13_random,13,0.2,random,100,3728,20867,372800,2.096473,19.415616
+seed13_degree_matched,13,0.2,degree_matched,100,3728,20867,372800,7.805274,26.730996
+seed13_hard_2hop,13,0.2,hard_2hop,100,3728,20867,372800,15.772892,32.833697
+seed21_random,21,0.2,random,100,3728,20867,372800,2.017685,18.763907
+seed21_degree_matched,21,0.2,degree_matched,100,3728,20867,372800,7.291593,25.57388
+seed21_hard_2hop,21,0.2,hard_2hop,100,3728,20867,372800,15.513214,32.530018
+seed42_random,42,0.2,random,100,3728,20867,372800,1.982653,18.809823
+seed42_degree_matched,42,0.2,degree_matched,100,3728,20867,372800,7.342864,25.616523
+seed42_hard_2hop,42,0.2,hard_2hop,100,3728,20867,372800,15.890979,32.918473
+seed100_random,100,0.2,random,100,3728,20867,372800,1.978775,18.794761
+seed100_degree_matched,100,0.2,degree_matched,100,3728,20867,372800,7.245156,25.689822
+seed100_hard_2hop,100,0.2,hard_2hop,100,3728,20867,372800,15.892138,33.071021

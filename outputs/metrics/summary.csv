@@ -1,0 +1,5 @@
+algorithm,k,sources_evaluated,precision_at_k,hit_rate_at_k,mrr,positive_candidates,negative_candidates
+common_neighbors,10,3728,0.229641,0.711373,0.4934,20867,372800
+jaccard,10,3728,0.219742,0.698766,0.420111,20867,372800
+adamic_adar,10,3728,0.230472,0.714056,0.502139,20867,372800
+personalized_pagerank,10,3728,0.239297,0.791845,0.551049,20867,372800

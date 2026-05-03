@@ -1,0 +1,4 @@
+run_id,seed,test_ratio,negative_strategy,negatives_per_source,sources_evaluated,positive_candidates,negative_candidates,candidate_build_seconds,total_runtime_seconds
+seed42_random,42,0.2,random,20,100,1294,2000,0.157896,1.546494
+seed42_degree_matched,42,0.2,degree_matched,20,100,1294,2000,0.34505,1.768908
+seed42_hard_2hop,42,0.2,hard_2hop,20,100,1294,2000,0.639579,2.065753

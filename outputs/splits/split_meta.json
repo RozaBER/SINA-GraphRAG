@@ -1,0 +1,11 @@
+{
+  "seed": 42,
+  "requested_test_ratio": 0.2,
+  "actual_test_ratio": 0.201246,
+  "total_nodes": 7115,
+  "total_edges": 103689,
+  "train_edge_count": 82822,
+  "test_edge_count": 20867,
+  "sources_with_test_edges": 3728,
+  "input_path": "Wiki-Vote.txt"
+}
