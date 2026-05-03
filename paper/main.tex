@@ -1,0 +1,168 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[a4paper,margin=0.72in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage[numbers,sort&compress]{natbib}
+
+\title{\textbf{Graph-Based Context Retrieval for Retrieval-Augmented Generation:\\
+A Link-Prediction Study on the Wiki-Vote Network}}
+\author{Net RAG Project}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Retrieval-augmented generation (RAG) systems improve language-model reliability by grounding generation in external evidence, but conventional retrieval can miss structural context when relevance is expressed through indirect relationships rather than lexical similarity. This paper presents a compact GraphRAG-style retrieval module that formulates context retrieval as link prediction on the Wikipedia Vote Network. The system parses raw SNAP Wiki-Vote edges, performs a source-node-stratified random train/test split, samples negative candidate targets, and compares four graph scoring functions: Common Neighbors, Jaccard coefficient, Adamic-Adar, and approximate Personalized PageRank. On the full dataset split with 82,822 training edges and 20,867 hidden test edges, Personalized PageRank obtains the best overall result, with Precision@10 of 0.239297, HitRate@10 of 0.791845, and MRR of 0.551049. The study shows that graph-based retrieval can provide a reproducible, inspectable retrieval layer for GraphRAG pipelines, even before adding a downstream language generator.
+\end{abstract}
+
+\section{Introduction}
+Large language models can generate fluent answers while still failing when the required knowledge is absent, private, or stale. Retrieval-augmented generation addresses this limitation by retrieving external evidence before generation, allowing model outputs to be grounded in non-parametric memory \citep{lewis2020rag}. However, a retrieval component based only on direct lexical or vector similarity can miss relevant context that is expressed through relationships. Recent GraphRAG work argues that graph indexes can improve retrieval and summarization when questions require global or relational context \citep{edge2024graphrag}.
+
+This project studies the retrieval part of that idea in isolation. Instead of constructing a full question-answering application, it builds a graph retrieval module over the Wikipedia Vote Network. A directed edge from user $u$ to user $v$ denotes that $u$ voted for $v$ in a Wikipedia administrator election. If an unobserved edge from $u$ to $v$ can be predicted from the training graph, then $v$ is treated as structurally relevant context for $u$.
+
+The contribution is practical and reproducible. The repository implements raw data parsing, deterministic edge splitting, candidate generation, four retrieval algorithms, ranking evaluation, single-user context retrieval, and visualization. This paper summarizes the implemented method and reports the saved full-dataset results using the project artifacts.
+
+\section{Related Work}
+RAG combines a parametric generator with an external retrieval mechanism so that generation can be conditioned on retrieved evidence \citep{lewis2020rag}. GraphRAG extends this direction by using graph structure as an indexing and aggregation substrate, enabling retrieval over relationships, communities, and indirect links \citep{edge2024graphrag}.
+
+The retrieval task in this project is closely related to classical link prediction. Liben-Nowell and Kleinberg formalized link prediction as inferring future or missing interactions from a network snapshot and showed that graph proximity measures can be predictive \citep{liben2007link}. Common Neighbors and Jaccard-style overlap scores are simple local proximity measures, while Adamic-Adar weights rare common neighbors more strongly \citep{adamic2003friends}. PageRank and Personalized PageRank provide global random-walk views of graph importance and source-specific relevance \citep{page1999pagerank,jeh2003scaling}.
+
+The experimental dataset comes from SNAP's Wikipedia Vote Network, whose source material is associated with work on signed social networks and link prediction in online communities \citep{leskovec2010signed,leskovec2010predicting,snapnets}. The implementation uses NetworkX for graph construction and traversal \citep{hagberg2008networkx}.
+
+\section{Methodology}
+\subsection{Problem Formulation}
+Let $G=(V,E)$ be the directed Wiki-Vote graph. The project hides a subset of edges $E_{\mathrm{test}}$ and builds a training graph $G_{\mathrm{train}}=(V,E_{\mathrm{train}})$. For a source node $s$, the retrieval module ranks candidate targets $t$ that are not already visible as training outgoing edges from $s$. Hidden test edges are positive candidates, and randomly sampled non-existent edges are negative candidates.
+
+The output is a ranked list:
+\[
+R_s = \operatorname{rank}_{t \in C_s} f(s,t),
+\]
+where $C_s$ is the candidate set for source $s$ and $f$ is a graph scoring function.
+
+\subsection{Data Preparation}
+The raw file \texttt{Wiki-Vote.txt} is parsed directly. Comment lines are skipped, edge rows are converted into integer node pairs, and duplicate edges are removed. Because the dataset does not include timestamps for each edge in the local task file, the project uses a deterministic random split. For each source node with at least two outgoing edges, approximately $20\%$ of its targets are sampled into the test set, while at least one outgoing edge is kept for training. Sources with one outgoing edge remain in the training graph.
+
+SNAP reports 7,115 nodes and 103,689 edges for the Wiki-Vote network \citep{snapnets}. The repository's default split with seed 42 produces 82,822 training edges and 20,867 testing edges from 103,689 unique edges.
+
+\subsection{Graph Scoring Functions}
+The project evaluates four scoring functions. Common Neighbors counts neighbor overlap in an undirected projection:
+\[
+f_{\mathrm{CN}}(s,t)=|\Gamma(s)\cap\Gamma(t)|.
+\]
+The Jaccard coefficient normalizes overlap by the union size:
+\[
+f_{\mathrm{Jaccard}}(s,t)=
+\frac{|\Gamma(s)\cap\Gamma(t)|}{|\Gamma(s)\cup\Gamma(t)|}.
+\]
+Adamic-Adar discounts high-degree common neighbors:
+\[
+f_{\mathrm{AA}}(s,t)=
+\sum_{z\in \Gamma(s)\cap\Gamma(t)}\frac{1}{\log |\Gamma(z)|}.
+\]
+These three scorers use the undirected training projection to reduce sparsity.
+
+Personalized PageRank is implemented as an approximate random-walk scorer on the directed training graph. For each source node, the implementation simulates source-centered walks with restart probability 0.15, 400 walks, and walk length 20. Candidate targets are scored by normalized visit frequency. This produces a practical approximation to source-conditioned graph relevance.
+
+\subsection{Candidate Sampling and Evaluation}
+For every source node with hidden positives, the candidate set includes its true hidden targets and up to 100 randomly sampled negative targets that are not edges in the full graph. The random sampler is deterministic under the configured seed.
+
+The ranking is evaluated with Macro Precision@K, HitRate@K, and mean reciprocal rank (MRR). Precision@K measures the average fraction of top-$K$ candidates that are true hidden edges. HitRate@K records whether at least one hidden edge appears in the top-$K$ list. MRR rewards algorithms that place the first positive target early in the ranking.
+
+\section{Experiments}
+The experiment uses the repository defaults: seed 42, test ratio 0.2, $K=10$, and 100 negative samples per source. The workflow consists of four stages:
+\begin{enumerate}
+    \item prepare the train/test edge split from \texttt{Wiki-Vote.txt};
+    \item evaluate all graph scorers over sampled candidate sets;
+    \item retrieve the top related nodes for a selected source user;
+    \item generate summary plots from saved metrics and ranking files.
+\end{enumerate}
+
+The implementation is intentionally lightweight: it is a retrieval module for GraphRAG, not a full LLM answering system. This separation makes the retrieval behavior measurable without confounding it with generator quality, prompt design, or answer evaluation.
+
+\section{Results}
+Table~\ref{tab:main-results} reports the saved full-dataset results. Personalized PageRank is the strongest scorer on all three metrics. Adamic-Adar and Common Neighbors are close on Precision@10, but Personalized PageRank improves HitRate@10 substantially, suggesting that random-walk context is better at placing at least one true hidden edge in the top retrieved set.
+
+\begin{table}[t]
+\centering
+\caption{Full-dataset retrieval performance with $K=10$ and 100 negative candidates per source.}
+\label{tab:main-results}
+\scriptsize
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Algorithm & P@10 & HR@10 & MRR \\
+\midrule
+Common Neighbors & 0.229641 & 0.711373 & 0.493400 \\
+Jaccard & 0.219742 & 0.698766 & 0.420111 \\
+Adamic-Adar & 0.230472 & 0.714056 & 0.502139 \\
+Personalized PR & \textbf{0.239297} & \textbf{0.791845} & \textbf{0.551049} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/metrics_summary.png}
+    \caption{Metric summary across graph retrieval algorithms.}
+    \label{fig:metrics-summary}
+\end{minipage}\hfill
+\begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/precision_at_k_curve.png}
+    \caption{Precision@K curve showing how retrieval quality changes as $K$ increases.}
+    \label{fig:precision-curve}
+\end{minipage}
+\end{figure*}
+
+Figures~\ref{fig:metrics-summary} and~\ref{fig:precision-curve} visualize the metric-level behavior. The Precision@K curve is useful because a retrieval module may expose different numbers of contexts to a downstream generator; an algorithm that is robust across $K$ is easier to tune in a complete GraphRAG pipeline.
+
+\begin{figure*}[t]
+\centering
+\begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/precision_at_k_heatmap.png}
+    \caption{Precision@K heatmap for comparing algorithms and cutoff values.}
+    \label{fig:heatmap}
+\end{minipage}\hfill
+\begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/score_distribution_positive_negative.png}
+    \caption{Score distribution for positive hidden edges and sampled negative candidates.}
+    \label{fig:score-dist}
+\end{minipage}
+\end{figure*}
+
+Figures~\ref{fig:heatmap} and~\ref{fig:score-dist} show two complementary views. The heatmap makes algorithm cutoffs comparable, while the score distribution indicates how well the scorer separates hidden positive edges from random non-edges. This distinction matters for retrieval: even a modest Precision@K can still be useful if positives are consistently shifted toward higher scores.
+
+\begin{figure*}[t]
+\centering
+\begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/train_degree_distribution.png}
+    \caption{Training graph degree distribution, showing the heavy-tailed structure typical of real social networks.}
+    \label{fig:degree}
+\end{minipage}\hfill
+\begin{minipage}{0.48\textwidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/user_30_ppr_retrieval_network.png}
+    \caption{Example Personalized PageRank retrieval network for user 30.}
+    \label{fig:retrieval-network}
+\end{minipage}
+\end{figure*}
+
+Figures~\ref{fig:degree} and~\ref{fig:retrieval-network} connect the quantitative metrics back to graph structure. The degree distribution explains why purely local overlap can be brittle: many nodes have limited visible neighborhoods, while a smaller number of hubs dominate connectivity. The retrieval network example illustrates how the module can provide structural evidence, such as short paths or shared neighbors, for a recommended context node.
+
+\section{Conclusion}
+This project demonstrates a reproducible GraphRAG retrieval module by turning context retrieval into link prediction on the Wiki-Vote graph. The results show that approximate Personalized PageRank provides the best retrieval quality among the implemented scorers, outperforming local overlap methods on Precision@10, HitRate@10, and MRR. More broadly, the study supports the value of graph-aware retrieval when relevant context is relational rather than purely textual.
+
+The main limitation is that the system stops at retrieval: it does not yet feed retrieved graph context into an LLM, evaluate generated answers, or compare against dense text retrieval. Future work should add textual node attributes, test graph-plus-vector hybrid retrieval, and measure the downstream effect of retrieved graph context on answer factuality and citation quality.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
