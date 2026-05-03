@@ -1,4 +1,4 @@
-\begin{thebibliography}{10}
+\begin{thebibliography}{14}
 \providecommand{\natexlab}[1]{#1}
 \providecommand{\url}[1]{\texttt{#1}}
 \expandafter\ifx\csname urlstyle\endcsname\relax
@@ -21,6 +21,15 @@ Darren Edge, Ha~Trinh, Newman Cheng, Joshua Bradley, Alex Chao, Apurva Mody,
   summarization, 2024.
 \newblock URL \url{https://arxiv.org/abs/2404.16130}.
 
+\bibitem[Grover and Leskovec(2016)]{grover2016node2vec}
+Aditya Grover and Jure Leskovec.
+\newblock node2vec: Scalable feature learning for networks.
+\newblock In \emph{Proceedings of the 22nd ACM SIGKDD International Conference
+  on Knowledge Discovery and Data Mining}, KDD '16, pages 855--864, New York,
+  NY, USA, 2016. ACM.
+\newblock \doi{10.1145/2939672.2939754}.
+\newblock URL \url{https://doi.org/10.1145/2939672.2939754}.
+
 \bibitem[Hagberg et~al.(2008)Hagberg, Schult, and Swart]{hagberg2008networkx}
 Aric~A. Hagberg, Daniel~A. Schult, and Pieter~J. Swart.
 \newblock Exploring network structure, dynamics, and function using networkx.
@@ -36,6 +45,17 @@ Glen Jeh and Jennifer Widom.
   Wide Web}, WWW '03, pages 271--279, New York, NY, USA, 2003. ACM.
 \newblock \doi{10.1145/775152.775191}.
 \newblock URL \url{https://doi.org/10.1145/775152.775191}.
+
+\bibitem[Karpukhin et~al.(2020)Karpukhin, Oguz, Min, Lewis, Wu, Edunov, Chen,
+  and Yih]{karpukhin2020dpr}
+Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey
+  Edunov, Danqi Chen, and Wen-tau Yih.
+\newblock Dense passage retrieval for open-domain question answering.
+\newblock In \emph{Proceedings of the 2020 Conference on Empirical Methods in
+  Natural Language Processing}, pages 6769--6781. Association for Computational
+  Linguistics, 2020.
+\newblock \doi{10.18653/v1/2020.emnlp-main.550}.
+\newblock URL \url{https://aclanthology.org/2020.emnlp-main.550}.
 
 \bibitem[Leskovec and Krevl(2014)]{snapnets}
 Jure Leskovec and Andrej Krevl.
@@ -87,5 +107,22 @@ Lawrence Page, Sergey Brin, Rajeev Motwani, and Terry Winograd.
 \newblock The pagerank citation ranking: Bringing order to the web.
 \newblock Technical Report SIDL-WP-1999-0120, Stanford InfoLab, 1999.
 \newblock URL \url{https://ilpubs.stanford.edu/422/}.
+
+\bibitem[Perozzi et~al.(2014)Perozzi, Al-Rfou, and Skiena]{perozzi2014deepwalk}
+Bryan Perozzi, Rami Al-Rfou, and Steven Skiena.
+\newblock Deepwalk: Online learning of social representations.
+\newblock In \emph{Proceedings of the 20th ACM SIGKDD International Conference
+  on Knowledge Discovery and Data Mining}, KDD '14, pages 701--710, New York,
+  NY, USA, 2014. ACM.
+\newblock \doi{10.1145/2623330.2623732}.
+\newblock URL \url{https://doi.org/10.1145/2623330.2623732}.
+
+\bibitem[Robertson and Zaragoza(2009)]{robertson2009bm25}
+Stephen Robertson and Hugo Zaragoza.
+\newblock The probabilistic relevance framework: Bm25 and beyond.
+\newblock \emph{Foundations and Trends in Information Retrieval}, 3\penalty0
+  (4):\penalty0 333--389, 2009.
+\newblock \doi{10.1561/1500000019}.
+\newblock URL \url{https://doi.org/10.1561/1500000019}.
 
 \end{thebibliography}
